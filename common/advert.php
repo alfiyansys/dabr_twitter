@@ -1,6 +1,9 @@
 <?php
 /* Example advert code */
-
+function tracker() {
+	$content = file_get_contents('common/counter.html');
+	theme('page', 'Tracker', $content);
+}
 function theme_advert() {
 	// This allows for multiple advert providers
 	// If one advert provider isn't installed, or doesn't return an ad, a different provider is used

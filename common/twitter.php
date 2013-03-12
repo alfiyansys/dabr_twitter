@@ -1269,6 +1269,26 @@ function theme_user_header($user) {
 	$out .= "Link: {$link}<br />";
 	$out .= "Location: <a href=\"http://maps.google.com/m?q={$cleanLocation}\" target=\"" . get_target() . "\">{$user->location}</a><br />";
 	$out .= "Joined: {$date_joined} (~" . pluralise('tweet', $tweets_per_day, true) . " per day)";
+	
+	//start patch code for following indicator
+	if (strtolower($user->screen_name) == strtolower(user_current_username())){
+	$out.= "<br/><strong><b style='color:green'>Thats you (´▽`)</b></strong>";
+	}
+	else {
+	if ($followed_by == true && $following == true){
+	$out.= "<br/><strong><b style='color:green'>You're following {$user->name}, and {$user->name} follows you (˘⌣˘ʃƪ)</b></strong>";
+	}
+	if ($followed_by == false && $following == true){
+	$out.= "<br/><strong><b style='color:red'>You're not follow {$user->name}!</b>, </strong><strong><b style='color:green'>but {$user->name} follows you (ʃ⌣ƪ)</b></strong>";
+	}
+	if ($followed_by == true && $following == false){
+	$out.= "<br/><strong><b style='color:green'>You're following {$user->name}!</b>, </strong><strong><b style='color:red'>but {$user->name} doesn't follow you, (‾-ƪ‾) ( ‾-‾)-σ•</b></strong>";
+	}
+	if ($followed_by == false && $following == false){
+	$out.= "<br/><strong><b style='color:red'>{$user->name} doesn't follow you, and you don't follow {$user->name} too! (¯―¯٥)</b></strong>";
+	}
+	//end
+	}
 	$out .= "</span></span>";
 	$out .= "<div class='features'>";
 	$out .= pluralise('tweet', $user->statuses_count, true);
@@ -1615,7 +1635,7 @@ function theme_timeline($feed)
 		//$links[] = "<a href='{$_GET['q']}?since_id=$since_id'>Newer</a>";
 
 		if(is_64bit()) $max_id = intval($max_id) - 1; //stops last tweet appearing as first tweet on next page
-		$links[] = "<a href='{$_GET['q']}?max_id=$max_id' accesskey='9'>Older</a> 9";
+		$links[] = "<a href='{$_GET['q']}?max_id=$max_id' accesskey='9'>Older 9";
 		$content .= '<p>'.implode(' | ', $links).'</p>';
 	}
 
