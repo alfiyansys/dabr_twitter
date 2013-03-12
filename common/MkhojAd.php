@@ -1,304 +1,121 @@
 <?php
-/**********************************************************************************
- *  InMobi Ad Code
- *  Copyright mKhoj Solutions Pvt Ltd and all its subsidiaries. All rights reserved.
- **********************************************************************************/
-class MkhojAd 
-{
-    private $mk_podata; // Request post data
-    private $mk_resp;   // Response data
-    private $mk_test;   // Mode is test or live
-    private $mk_url;
-    private $mk_jchar;  // Join char for various multi-value keys
+    /**************************************************************************
+     *  InMobi Ad Code
+     *  Copyright mKhoj Solutions Pvt Ltd and all its subsidiaries. All rights reserved.
+     **************************************************************************/
 
-    public function __construct( $mk_siteid )
+    /************************************************************************** 
+     *  For better targeting, tell us where this ad is intended to 
+     *  be placed on the page.
+     *  Accepted Values are 'top', 'middle', 'bottom', or 'page',
+     *  denoting top 20%, middle 60%, bottom 20% or the whole page
+     *  length respectively.
+     **************************************************************************/
+    $mkhoj_plc  = 'page';
+
+    /**************************************************************************
+     *  Make the value of this parameter true if you are running some tests.
+     *  This will make the ad code call the mKhoj sandbox.
+     **************************************************************************/
+    $mkhoj_test = false;
+
+    /**************************************************************************
+     *  For better targeting, track individual users by setting a persistent
+     *  cookie/session in their browser. Set the cookie/session with following 
+     *  properties
+     *    - Cookie value : UUID or some other unique value
+     *    - Path         : /
+     *    - Expires      : 1 year
+     *  On a request, if cookie/session value is not retrieved, set a new value.
+     *  Set this value in the following variable.
+     *  NB: This has to be done near the top of the page before any HTML body
+     *      fragment goes out.
+     **************************************************************************/
+ 
+    $mkhoj_sessionid = '';
+
+    /**************************************************************************
+     *  ALL EDITABLE CODE FRAGMENTS ARE ABOVE THIS MESSAGE. DO NOT EDIT BELOW
+     *  THIS UP TO NOAD SECTION.
+     **************************************************************************/
+
+    $mkhoj_siteid = '4028cbff3b93b240013b9edd68de00c7';
+    if( !isset($mkhoj_mkids) ) $mkhoj_mkids  = '';
+
+    $mkhoj_pdata  = array( 
+        'mk-siteid=' . $mkhoj_siteid,
+        'mk-carrier=' . rawurlencode($_SERVER['REMOTE_ADDR']),
+        'mk-version=el-QEQE-CTATE-20090805',
+        'mk-placement=' . $mkhoj_plc,
+        'mk-sessionid=' . $mkhoj_sessionid,
+        'mk-mkids=' . $mkhoj_mkids );
+
+    $mkhoj_prot = 'http';
+    if( !empty($_SERVER['HTTPS']) && ('on' === $_SERVER['HTTPS']) ) 
+        $mkhoj_prot .= 's';
+    array_push(  $mkhoj_pdata, 'h-page-url=' . rawurlencode($mkhoj_prot .
+                 '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']) );
+
+    if( array_key_exists('HTTP_ACCEPT', $_SERVER) )
+        array_push( $mkhoj_pdata, 'h-accept=' . rawurlencode( 
+                                                  $_SERVER['HTTP_ACCEPT']) );
+    if( array_key_exists('HTTP_REFERER', $_SERVER) )
+        array_push( $mkhoj_pdata, 'h-referer=' . rawurlencode(
+                                                 $_SERVER['HTTP_REFERER']) );
+    if( array_key_exists('HTTP_USER_AGENT', $_SERVER) )
+        array_push( $mkhoj_pdata, 'h-user-agent=' . rawurlencode(
+                                              $_SERVER['HTTP_USER_AGENT']) );
+
+    $mkhoj_jchar = chr( 26 );
+    foreach( $_SERVER as $mkhoj_key => $mkhoj_val )
     {
-        $this->mk_podata = array (
-            'mk-siteid'    => $mk_siteid,
-            'mk-version'   => 'pr-QEQE-CTATE-20090805',
-            'mk-ads'       => 1
-        );
-
-        $this->mk_resp  = array ();
-
-        $this->mk_test  = false;
-        $this->mk_jchar = chr(1);
-        $this->mk_url   = 'http://w.mkhoj.com/showad.asm';
-
-        if( array_key_exists('HTTP_REFERER', $_SERVER) )
-            $this->mk_podata['h-referer'] = $_SERVER['HTTP_REFERER'];
-        if( array_key_exists('HTTP_ACCEPT', $_SERVER) )
-            $this->mk_podata['h-accept'] = $_SERVER['HTTP_ACCEPT'];
-        if( array_key_exists('HTTP_USER_AGENT', $_SERVER) )
-            $this->mk_podata['h-user-agent'] = $_SERVER['HTTP_USER_AGENT'];
-        if( array_key_exists('REMOTE_ADDR', $_SERVER) )
-            $this->mk_podata['mk-carrier'] = $_SERVER['REMOTE_ADDR'];
-
-        $mk_prot = 'http';
-        if( !empty($_SERVER['HTTPS']) && ('on' === $_SERVER['HTTPS']) )
-            $mk_prot = 'https';
-        $this->mk_podata['h-page-url'] = 
-            $mk_prot . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
-
-        foreach( $_SERVER as $mk_key => $mk_val )
+        if(   0 === strpos($mkhoj_key, 'HTTP_X') )
         {
-            if( 0 === strpos($mk_key, 'HTTP_X_') )
-            {
-                $mk_key = str_replace(array('HTTP_X_', '_'),
-                                      array('x-', '-'), $mk_key);
-                $this->mk_podata[strtolower($mk_key)] = $mk_val;
-            }
-        }
-    }
-
-    public function fetch_ad( $mk_placement='page' )
-    {
-        if( !is_scalar($mk_placement) )
-            return '';
-
-        
-        if( array_key_exists($mk_placement, $this->mk_resp) )
-        {
-            if(   'page' !== $mk_placement 
-               && 0 === count($this->mk_resp[$mk_placement]) 
-              ) $mk_placement = 'page';
-            return array_shift($this->mk_resp[$mk_placement]);
-        }
-        else
-        {
-            if(0 !== count($this->mk_resp['page']))
-                return array_shift($this->mk_resp['page']);
-        }
-            return '';
-    }
-
-    public function parse_response( $mk_response )
-    {
-        if(   null == $mk_response
-           || !is_scalar($mk_response) 
-           || empty($mk_response) 
-          ) return false;
-
-        $mk_respfrags = preg_split("/\cW\cK/", $mk_response);
-
-        foreach( $mk_respfrags as $mk_respfrag )
-        {
-            $mk_respad = preg_split("/\cT\cX/", $mk_respfrag);
-
-            if( !array_key_exists($mk_respad[0], $this->mk_resp) )
-                $this->mk_resp[$mk_respad[0]] = array();
-
-            array_push($this->mk_resp[$mk_respad[0]], $mk_respad[1]);
-        }
-        return true;
-    }
-
-    public function request_ads()
-    {
-        $mk_timeout = 12;
-
-        $mk_copt = array (
-            CURLOPT_RETURNTRANSFER  => true,
-            CURLOPT_HEADER          => false,
-            CURLOPT_HTTPPROXYTUNNEL => true,
-            CURLOPT_POST            => true,
-            CURLOPT_POSTFIELDS      => $this->get_post_body(),
-            CURLOPT_CONNECTTIMEOUT  => $mk_timeout,
-            CURLOPT_TIMEOUT         => $mk_timeout,
-            CURLOPT_HTTPHEADER      => $this->get_headers()
-        );
-
-        if(( $mk_ch = curl_init($this->get_mkhoj_url()) ))
-        {
-            curl_setopt_array($mk_ch, $mk_copt);
-
-            $mk_retval = curl_exec($mk_ch);
-            $mk_httpstatus = curl_getinfo($mk_ch, CURLINFO_HTTP_CODE);
-            if( 200 > $mk_httpstatus || 299 < $mk_httpstatus )
-            {
-                return false;;
-            }
-            curl_close($mk_ch);
-
-            return $this->parse_response($mk_retval);
-        }
-        return false;
-    }
-
-    public function get_post_body()
-    {
-        $mk_postbody  = '';
-        $mk_innerglue = '=';
-        $mk_outerglue = '&';
-
-        $mk_isconsec  = false;
-
-        foreach( $this->mk_podata as $mk_key => $mk_val )
-        {
-            $mk_pofield = $mk_key . '=' . rawurlencode( $mk_val );
-            if( $mk_isconsec )
-            {
-                $mk_postbody .= '&' . $mk_pofield;
-            }
+            $mkhoj_key = str_replace(array('HTTP_X_', '_'), 
+                                     array('x-', '-'), $mkhoj_key);
+            if( is_array($mkhoj_val) )
+                $mkhoj_val = rawurlencode( join( $mkhoj_jchar, $mkhoj_val) );
             else
-            {
-                $mk_isconsec  = true;
-                $mk_postbody .= $mk_pofield;
-            }
+                $mkhoj_val = rawurlencode($mkhoj_val);
+            array_push($mkhoj_pdata, strtolower($mkhoj_key) . '=' . $mkhoj_val);
         }
-        return $mk_postbody;
     }
 
-    public function get_headers()
-    {
-        return array(
+    $mkhoj_post    = join( '&', $mkhoj_pdata );
+    $mkhoj_url     = $mkhoj_test 
+             ? 'http://w.sandbox.mkhoj.com/showad.asm'
+             : 'http://w.mkhoj.com/showad.asm';
+    $mkhoj_timeout = 12;
+
+    $mkhoj_copt = array (
+        CURLOPT_URL             => $mkhoj_url,
+        CURLOPT_RETURNTRANSFER  => true,
+        CURLOPT_HEADER          => false,
+        CURLOPT_HTTPPROXYTUNNEL => true,
+        CURLOPT_POST            => true,
+        CURLOPT_POSTFIELDS      => $mkhoj_post,
+        CURLOPT_CONNECTTIMEOUT  => $mkhoj_timeout,
+        CURLOPT_TIMEOUT         => $mkhoj_timeout,
+        CURLOPT_HTTPHEADER      => array (
             'Content-Type: application/x-www-form-urlencoded',
-            'X-mKhoj-SiteId: ' . $this->mk_podata['mk-siteid']
+            'X-mKhoj-SiteId: ' . $mkhoj_siteid )
         );
-    }
+    $mkhoj_ch = curl_init();
+    curl_setopt_array( $mkhoj_ch, $mkhoj_copt );
 
-    public function get_mkhoj_url()
-    {
-        return $this->mk_url;
-    }
+    $mkhoj_response = curl_exec($mkhoj_ch);
 
-    public function set_user_age( $mk_uage )
-    {
-        if( is_int($mk_uage) && $mk_uage > 0 )
-        {
-            $this->mk_podata['u-age'] = $mk_uage;
-            return true;
-        }
-        return false;
-    }
+    curl_close($mkhoj_ch);
 
-    public function set_user_id( $mk_uid )
-    {
-        if( is_scalar($mk_uid) )
-        {
-            $this->mk_podata['u-id'] = $mk_uid;
-            return true;
-        }
-        return false;
-    }
+    if( null !== $mkhoj_response )
+        echo( $mkhoj_response );
 
-    public function set_user_gender( $mk_ugender )
+    /*************************************************************************
+     *  THIS 'IF' BLOCK CONFIRMS IF THERE WASN'T ANY AD. USE THIS BLOCK FOR
+     *  BACK-FILLING THIS PLACE OR ENTER SOME OTHER COMPATIBLE WAP HREF TAG
+     *  HERE TO SHOW TEXT/URL. E.G. <a href="http://www.mkhoj.com">mKhoj</a>
+     *************************************************************************/
+    if( null == $mkhoj_response || preg_match('/^\<\!--.*--\>$/', $mkhoj_response) )
     {
-        if(   is_scalar($mk_ugender) 
-           && (   'f' === strtolower($mk_ugender)
-               || 'm' === strtolower($mk_ugender)
-               || 't' === strtolower($mk_ugender)
-              )
-          )
-        {
-            $this->mk_podata['u-gender'] = strtolower($mk_ugender);
-            return true;
-        }
-        return false;
     }
-
-    public function set_user_location( $mk_ulocation ) 
-    {
-        if( is_array($mk_ulocation) && 3 >= count($mk_ulocation) ) 
-        {
-            $this->mk_podata['u-location'] = implode($mk_jchar, $mk_ulocation);
-            return true;
-        }
-        return false;
-    }
-
-    public function set_user_interests( $mk_uinterests ) 
-    {
-        if( is_scalar($mk_uinterests) ) 
-        {
-            $this->mk_podata['u-interests'] = $mk_uinterests;
-            return true;
-        }
-        return false;
-    }
-
-    public function set_page_type( $mk_ptype )
-    {
-        if( is_scalar($mk_ptype) )
-        {
-            $this->mk_podata['p-type'] = $mk_ptype;
-            return true;
-        }
-        return false;
-    }
-
-    public function set_page_keywords( $mk_pkeyw )
-    {
-        if( is_scalar($mk_pkeyw) )
-        {
-            $this->mk_podata['p-keywords'] = $mk_pkeyw;
-            return true;
-        }
-        return false;
-    }
-
-    public function set_page_description( $mk_pdesc )
-    {
-        if( is_scalar($mk_pdesc) )
-        {
-            $this->mk_podata['p-description'] = $mk_pdesc;
-            return true;
-        }
-        return false;
-    }
-
-    public function set_ad_placements( $mk_plcmnt )
-    {
-        $mk_retval = true;
-        if( is_array($mk_plcmnt) )
-        {
-            $this->mk_podata['mk-placement'] = 
-                            implode( $this->mk_jchar, $mk_plcmnt );
-            $this->mk_podata['mk-ads'] = count( $mk_plcmnt );
-        }
-        else if( is_scalar($mk_plcmnt) )
-        {
-            $this->mk_podata['mk-placement'] = $mk_plcmnt;
-            $this->mk_podata['mk-ads'] = 1;
-        }
-        else
-            $mk_retval = false;
-        return $mk_retval;
-    }
-
-    public function set_num_of_ads( $mk_ads )
-    {
-        if( is_integer($mk_ads) )
-        {
-            $this->mk_podata['mk-ads'] = $mk_ads;
-            return true;
-        }
-        return false;
-    }
-
-    public function set_banner_size( $mk_banner_size )
-    {
-        if( is_integer($mk_banner_size) 
-            && $mk_banner_size >= 1 && $mk_banner_size <= 4)
-        { 
-            $this->mk_podata['mk-banner-size'] = $mk_banner_size;
-            return true;
-        }
-        return false;
-    }
-
-    public function set_test_mode( $mk_testmode )
-    {
-        if( is_bool($mk_testmode) )
-        {
-            $this->mk_test = $mk_testmode;
-            if( $mk_testmode ) 
-                $this->mk_url  = 'http://w.sandbox.mkhoj.com/showad.asm';
-            else
-                $this->mk_url  = 'http://w.mkhoj.com/showad.asm';
-            return true;
-        }
-        return false;
-    }
-}
 ?>
